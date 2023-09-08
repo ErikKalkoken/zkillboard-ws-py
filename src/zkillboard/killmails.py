@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import List, Optional, Tuple
 
+from .esi import create_eve_entities_from_ids
 from .eveuniverse import EveEntity
 
 logger = logging.getLogger("zkillboard")
@@ -137,7 +138,7 @@ class Killmail(_KillmailBase):
         """Resolve all eve entities from ESI."""
         entities = self.entities()
         ids = [obj.id for obj in entities]
-        resolved_entities = await EveEntity.create_objs_from_esi(ids)
+        resolved_entities = await create_eve_entities_from_ids(ids)
         for entity in entities:
             if entity.id in resolved_entities:
                 resolved_entity = resolved_entities[entity.id]
