@@ -4,6 +4,7 @@ from typing import Generic, TypeVar
 import factory
 import factory.fuzzy
 
+from zkillboard.eveuniverse import EveEntity
 from zkillboard.killmails import (
     Killmail,
     KillmailAttacker,
@@ -25,15 +26,75 @@ class BaseMetaFactory(Generic[T], factory.base.FactoryMetaClass):
         return super().__call__(*args, **kwargs)
 
 
+class EveEntityCharacterFactory(factory.Factory, metaclass=BaseMetaFactory[EveEntity]):
+    class Meta:
+        model = EveEntity
+
+    id = factory.Sequence(lambda n: 10000 + n)
+    name = factory.faker.Faker("name")
+    category = EveEntity.Category.CHARACTER
+
+
+class EveEntityCorporationFactory(
+    factory.Factory, metaclass=BaseMetaFactory[EveEntity]
+):
+    class Meta:
+        model = EveEntity
+
+    id = factory.Sequence(lambda n: 20000 + n)
+    name = factory.faker.Faker("company")
+    category = EveEntity.Category.CORPORATION
+
+
+class EveEntityAllianceFactory(factory.Factory, metaclass=BaseMetaFactory[EveEntity]):
+    class Meta:
+        model = EveEntity
+
+    id = factory.Sequence(lambda n: 30000 + n)
+    name = factory.faker.Faker("company")
+    category = EveEntity.Category.ALLIANCE
+
+
+class EveEntityFactionFactory(factory.Factory, metaclass=BaseMetaFactory[EveEntity]):
+    class Meta:
+        model = EveEntity
+
+    id = factory.Sequence(lambda n: 40000 + n)
+    name = factory.faker.Faker("color_name")
+    category = EveEntity.Category.FACTION
+
+
+class EveEntityInventoryTypeFactory(
+    factory.Factory, metaclass=BaseMetaFactory[EveEntity]
+):
+    class Meta:
+        model = EveEntity
+
+    id = factory.Sequence(lambda n: 50000 + n)
+    name = factory.faker.Faker("color_name")
+    category = EveEntity.Category.INVENTORY_TYPE
+
+
+class EveEntitySolarSystemFactory(
+    factory.Factory, metaclass=BaseMetaFactory[EveEntity]
+):
+    class Meta:
+        model = EveEntity
+
+    id = factory.Sequence(lambda n: 60000 + n)
+    name = factory.faker.Faker("city")
+    category = EveEntity.Category.SOLAR_SYSTEM
+
+
 class _KillmailCharacterFactory(factory.Factory):
     class Meta:
         model = _KillmailCharacter
 
-    character_id = factory.fuzzy.FuzzyInteger(1000, 9999)
-    corporation_id = factory.fuzzy.FuzzyInteger(1000, 9999)
-    alliance_id = factory.fuzzy.FuzzyInteger(1000, 9999)
-    faction_id = factory.fuzzy.FuzzyInteger(1000, 9999)
-    ship_type_id = factory.fuzzy.FuzzyInteger(1000, 9999)
+    character = factory.SubFactory(EveEntityCharacterFactory)
+    corporation = factory.SubFactory(EveEntityCorporationFactory)
+    alliance = factory.SubFactory(EveEntityAllianceFactory)
+    faction = factory.SubFactory(EveEntityFactionFactory)
+    ship_type = factory.SubFactory(EveEntityInventoryTypeFactory)
 
 
 class KillmailVictimFactory(
@@ -53,7 +114,7 @@ class KillmailAttackerFactory(
 
     damage_done = factory.fuzzy.FuzzyInteger(1_000_000)
     security_status = factory.fuzzy.FuzzyFloat(-10.0, 5)
-    weapon_type_id = factory.fuzzy.FuzzyInteger(1000, 9999)
+    weapon_type = factory.SubFactory(EveEntityInventoryTypeFactory)
 
 
 class KillmailPositionFactory(
@@ -89,7 +150,7 @@ class KillmailFactory(factory.Factory, metaclass=BaseMetaFactory[Killmail]):
     victim = factory.SubFactory(KillmailVictimFactory)
     position = factory.SubFactory(KillmailPositionFactory)
     zkb = factory.SubFactory(KillmailZkbFactory)
-    solar_system_id = factory.fuzzy.FuzzyInteger(1000, 9999)
+    solar_system = factory.SubFactory(EveEntitySolarSystemFactory)
     time = factory.LazyFunction(now)
 
     @factory.lazy_attribute

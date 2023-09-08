@@ -1,3 +1,5 @@
+# type: ignore
+
 import datetime as dt
 from unittest import TestCase
 
@@ -7,20 +9,6 @@ from .factories import KillmailFactory
 from .fixtures import killmails_raw
 
 MODULE_PATH = "killtracker.core.killmails"
-
-
-class TestKillmailSerialization(TestCase):
-    def test_dict_serialization(self):
-        killmail = KillmailFactory()
-        dct_1 = killmail.asdict()
-        killmail_2 = Killmail.from_dict(dct_1)
-        self.assertEqual(killmail, killmail_2)
-
-    def test_json_serialization(self):
-        killmail = KillmailFactory()
-        json_1 = killmail.asjson()
-        killmail_2 = Killmail.from_json(json_1)
-        self.assertEqual(killmail, killmail_2)
 
 
 class TestKillmail(TestCase):
@@ -39,7 +27,7 @@ class TestKillmail(TestCase):
         killmail = Killmail.create_from_zkb_data(killmail_data)
         # then
         self.assertEqual(killmail.id, 111519365)
-        self.assertEqual(killmail.solar_system_id, 30001994)
+        self.assertEqual(killmail.solar_system.id, 30001994)
 
     def test_should_return_all_entity_ids(self):
         # given
@@ -48,21 +36,23 @@ class TestKillmail(TestCase):
         result = killmail.entity_ids()
         # then
         expected = {
-            killmail.solar_system_id,
-            killmail.victim.corporation_id,
-            killmail.victim.alliance_id,
-            killmail.victim.faction_id,
-            killmail.victim.ship_type_id,
+            killmail.solar_system.id,
+            killmail.victim.character.id,
+            killmail.victim.corporation.id,
+            killmail.victim.alliance.id,
+            killmail.victim.faction.id,
+            killmail.victim.ship_type.id,
             killmail.zkb.location_id,
         }
         for attacker in killmail.attackers:
             expected.update(
                 {
-                    attacker.corporation_id,
-                    attacker.alliance_id,
-                    attacker.faction_id,
-                    attacker.ship_type_id,
-                    attacker.weapon_type_id,
+                    attacker.character.id,
+                    attacker.corporation.id,
+                    attacker.alliance.id,
+                    attacker.faction.id,
+                    attacker.ship_type.id,
+                    attacker.weapon_type.id,
                 }
             )
         self.assertSetEqual(result, expected)

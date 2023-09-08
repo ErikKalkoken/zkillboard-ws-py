@@ -3,15 +3,12 @@
 # pylint: disable = redefined-builtin
 
 import datetime as dt
-import json
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import List, Optional, Set, Tuple
 
-from dacite import DaciteError, from_dict
-
-from .serializers import JSONDateTimeDecoder, JSONDateTimeEncoder
+from .eveuniverse import EveEntity
 
 logger = logging.getLogger("zkillboard")
 
@@ -27,30 +24,34 @@ class _KillmailBase:
 
 @dataclass
 class _KillmailCharacter(_KillmailBase):
-    _ENTITY_PROPS = [
-        "character_id",
-        "corporation_id",
-        "alliance_id",
-        "faction_id",
-        "ship_type_id",
-    ]
+    _DATA_MAP = {
+        "character": "character_id",
+        "corporation": "corporation_id",
+        "alliance": "alliance_id",
+        "faction": "faction_id",
+        "ship_type": "ship_type_id",
+    }
 
-    character_id: Optional[int] = None
-    corporation_id: Optional[int] = None
-    alliance_id: Optional[int] = None
-    faction_id: Optional[int] = None
-    ship_type_id: Optional[int] = None
+    character: Optional[EveEntity] = None
+    corporation: Optional[EveEntity] = None
+    alliance: Optional[EveEntity] = None
+    faction: Optional[EveEntity] = None
+    ship_type: Optional[EveEntity] = None
 
     def entity_ids(self) -> Set[int]:
         """Return entity IDs."""
-        ids = {
-            self.corporation_id,
-            self.alliance_id,
-            self.faction_id,
-            self.ship_type_id,
-        }
-        ids.discard(None)
-        return ids  # type: ignore
+        ids = set()
+        if self.character:
+            ids.add(self.character.id)
+        if self.corporation:
+            ids.add(self.corporation.id)
+        if self.alliance:
+            ids.add(self.alliance.id)
+        if self.faction:
+            ids.add(self.faction.id)
+        if self.ship_type:
+            ids.add(self.ship_type.id)
+        return ids
 
 
 @dataclass
@@ -64,18 +65,18 @@ class KillmailVictim(_KillmailCharacter):
 class KillmailAttacker(_KillmailCharacter):
     """An attacker on a killmail."""
 
-    _ENTITY_PROPS = _KillmailCharacter._ENTITY_PROPS + ["weapon_type_id"]
+    _DATA_MAP = {**_KillmailCharacter._DATA_MAP, **{"weapon_type": "weapon_type_id"}}
 
     damage_done: Optional[int] = None
     is_final_blow: Optional[bool] = None
     security_status: Optional[float] = None
-    weapon_type_id: Optional[int] = None
+    weapon_type: Optional[EveEntity] = None
 
     def entity_ids(self) -> Set[int]:
         """Return entity IDs."""
         ids = super().entity_ids()
-        if self.weapon_type_id:
-            ids.add(self.weapon_type_id)
+        if self.weapon_type:
+            ids.add(self.weapon_type.id)
         return ids
 
 
@@ -116,30 +117,30 @@ class Killmail(_KillmailBase):
     attackers: List[KillmailAttacker]
     position: KillmailPosition
     zkb: KillmailZkb
-    solar_system_id: Optional[int] = None
+    solar_system: Optional[EveEntity] = None
 
     def __repr__(self):
         return f"{type(self).__name__}(id={self.id})"
 
     def attackers_distinct_alliance_ids(self) -> Set[int]:
         """Return distinct alliance IDs of all attackers."""
-        return {obj.alliance_id for obj in self.attackers if obj.alliance_id}
+        return {obj.alliance.id for obj in self.attackers if obj.alliance}
 
     def attackers_distinct_corporation_ids(self) -> Set[int]:
         """Return distinct corporation IDs of all attackers."""
-        return {obj.corporation_id for obj in self.attackers if obj.corporation_id}
+        return {obj.corporation.id for obj in self.attackers if obj.corporation}
 
     def attackers_distinct_character_ids(self) -> Set[int]:
         """Return distinct character IDs of all attackers."""
-        return {obj.character_id for obj in self.attackers if obj.character_id}
+        return {obj.character.id for obj in self.attackers if obj.character}
 
     def attackers_ship_type_ids(self) -> List[int]:
         """Returns ship type IDs of all attackers with duplicates."""
-        return [obj.ship_type_id for obj in self.attackers if obj.ship_type_id]
+        return [obj.ship_type.id for obj in self.attackers if obj.ship_type]
 
     def entity_ids(self) -> Set[int]:
         """Return distinct IDs of all entities (excluding None)."""
-        ids = {self.solar_system_id} if self.solar_system_id else set()
+        ids = {self.solar_system.id} if self.solar_system else set()
         if self.victim:
             ids.update(self.victim.entity_ids())
         if self.zkb:
@@ -151,9 +152,8 @@ class Killmail(_KillmailBase):
     def ship_type_distinct_ids(self) -> Set[int]:
         """Return distinct ship type IDs of all entities that are not None."""
         ids = set(self.attackers_ship_type_ids())
-        ship_type_id = self.victim.ship_type_id if self.victim else None
-        if ship_type_id:
-            ids.add(ship_type_id)
+        if self.victim and self.victim.ship_type:
+            ids.add(self.victim.ship_type.id)
         return ids
 
     def attacker_final_blow(self) -> Optional[KillmailAttacker]:
@@ -162,24 +162,6 @@ class Killmail(_KillmailBase):
             if attacker.is_final_blow:
                 return attacker
         return None
-
-    def asjson(self) -> str:
-        """Convert killmail into JSON data."""
-        return json.dumps(asdict(self), cls=JSONDateTimeEncoder)
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "Killmail":
-        """Create new object from dictionary."""
-        try:
-            return from_dict(data_class=Killmail, data=data)
-        except DaciteError as ex:
-            logger.error("Failed to convert dict to %s", type(cls), exc_info=True)
-            raise ex
-
-    @classmethod
-    def from_json(cls, json_str: str) -> "Killmail":
-        """Create new object from JSON data."""
-        return cls.from_dict(json.loads(json_str, cls=JSONDateTimeDecoder))
 
     @classmethod
     def create_from_zkb_data(cls, killmail_data: dict) -> "Killmail":
@@ -198,8 +180,8 @@ class Killmail(_KillmailBase):
             "attackers": attackers,
             "zkb": zkb,
         }
-        if "solar_system_id" in killmail_data:
-            params["solar_system_id"] = killmail_data["solar_system_id"]
+        if entity_id := killmail_data.get("solar_system_id"):
+            params["solar_system"] = EveEntity(entity_id)
 
         return Killmail(**params)
 
@@ -218,9 +200,9 @@ class Killmail(_KillmailBase):
         if "victim" in killmail_data:
             victim_data = killmail_data["victim"]
             params = {}
-            for prop in KillmailVictim._ENTITY_PROPS + ["damage_taken"]:
-                if prop in victim_data:
-                    params[prop] = victim_data[prop]
+            for obj_prop, data_prop in KillmailVictim._DATA_MAP.items():
+                if entity_id := victim_data.get(data_prop):
+                    params[obj_prop] = EveEntity(entity_id)
 
             victim = KillmailVictim(**params)
 
@@ -240,12 +222,9 @@ class Killmail(_KillmailBase):
         attackers = []
         for attacker_data in killmail_data.get("attackers", []):
             params = {}
-            for prop in KillmailAttacker._ENTITY_PROPS + [
-                "damage_done",
-                "security_status",
-            ]:
-                if prop in attacker_data:
-                    params[prop] = attacker_data[prop]
+            for obj_prop, data_prop in KillmailVictim._DATA_MAP.items():
+                if entity_id := attacker_data.get(data_prop):
+                    params[obj_prop] = EveEntity(entity_id)
 
             if "final_blow" in attacker_data:
                 params["is_final_blow"] = attacker_data["final_blow"]
@@ -260,8 +239,9 @@ class Killmail(_KillmailBase):
 
         zkb_data = package_data["zkb"]
         params = {}
+        params["location_id"] = zkb_data.get("locationID")
+
         for prop, mapping in (
-            ("locationID", "location_id"),
             ("hash", None),
             ("fittedValue", "fitted_value"),
             ("totalValue", "total_value"),
