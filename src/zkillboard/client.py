@@ -62,6 +62,7 @@ class _Client(ABC):
 
     async def _parse_killmail(self, killmail_data: dict):
         killmail = Killmail.create_from_zkb_data(killmail_data)
+        await killmail.resolve_entities()
         await self.on_new_killmail(killmail)
 
     async def run_client(self):

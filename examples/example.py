@@ -1,9 +1,11 @@
+from rich.pretty import pprint
+
 import zkillboard
 
 
 class MyClient(zkillboard.ClientKillStream):
     async def on_new_killmail(self, killmail: zkillboard.Killmail):
-        print(killmail)
+        pprint(repr(killmail))
 
 
 # class MyClient(zkillboard.ClientFiltered):

@@ -6,7 +6,7 @@ import datetime as dt
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import List, Optional, Set, Tuple
+from typing import List, Optional, Tuple
 
 from .eveuniverse import EveEntity
 
@@ -38,20 +38,20 @@ class _KillmailCharacter(_KillmailBase):
     faction: Optional[EveEntity] = None
     ship_type: Optional[EveEntity] = None
 
-    def entity_ids(self) -> Set[int]:
-        """Return entity IDs."""
-        ids = set()
+    def entities(self) -> List[EveEntity]:
+        """Return EveEntity objs."""
+        objs = []
         if self.character:
-            ids.add(self.character.id)
+            objs.append(self.character)
         if self.corporation:
-            ids.add(self.corporation.id)
+            objs.append(self.corporation)
         if self.alliance:
-            ids.add(self.alliance.id)
+            objs.append(self.alliance)
         if self.faction:
-            ids.add(self.faction.id)
+            objs.append(self.faction)
         if self.ship_type:
-            ids.add(self.ship_type.id)
-        return ids
+            objs.append(self.ship_type)
+        return objs
 
 
 @dataclass
@@ -72,12 +72,12 @@ class KillmailAttacker(_KillmailCharacter):
     security_status: Optional[float] = None
     weapon_type: Optional[EveEntity] = None
 
-    def entity_ids(self) -> Set[int]:
-        """Return entity IDs."""
-        ids = super().entity_ids()
+    def entities(self) -> List[EveEntity]:
+        """Return EveEntity objects."""
+        objs = super().entities()
         if self.weapon_type:
-            ids.add(self.weapon_type.id)
-        return ids
+            objs.append(self.weapon_type)
+        return objs
 
 
 @dataclass
@@ -102,10 +102,6 @@ class KillmailZkb(_KillmailBase):
     is_solo: Optional[bool] = None
     is_awox: Optional[bool] = None
 
-    def entity_ids(self) -> Set[int]:
-        """Return entity IDs."""
-        return {self.location_id} if self.location_id else set()
-
 
 @dataclass
 class Killmail(_KillmailBase):
@@ -119,42 +115,16 @@ class Killmail(_KillmailBase):
     zkb: KillmailZkb
     solar_system: Optional[EveEntity] = None
 
-    def __repr__(self):
-        return f"{type(self).__name__}(id={self.id})"
-
-    def attackers_distinct_alliance_ids(self) -> Set[int]:
-        """Return distinct alliance IDs of all attackers."""
-        return {obj.alliance.id for obj in self.attackers if obj.alliance}
-
-    def attackers_distinct_corporation_ids(self) -> Set[int]:
-        """Return distinct corporation IDs of all attackers."""
-        return {obj.corporation.id for obj in self.attackers if obj.corporation}
-
-    def attackers_distinct_character_ids(self) -> Set[int]:
-        """Return distinct character IDs of all attackers."""
-        return {obj.character.id for obj in self.attackers if obj.character}
-
-    def attackers_ship_type_ids(self) -> List[int]:
-        """Returns ship type IDs of all attackers with duplicates."""
-        return [obj.ship_type.id for obj in self.attackers if obj.ship_type]
-
-    def entity_ids(self) -> Set[int]:
-        """Return distinct IDs of all entities (excluding None)."""
-        ids = {self.solar_system.id} if self.solar_system else set()
+    def entities(self) -> List[EveEntity]:
+        """Return EveEntity objects."""
+        objs = []
+        if self.solar_system:
+            objs.append(self.solar_system)
         if self.victim:
-            ids.update(self.victim.entity_ids())
-        if self.zkb:
-            ids.update(self.zkb.entity_ids())
+            objs += self.victim.entities()
         for attacker in self.attackers:
-            ids.update(attacker.entity_ids())
-        return ids
-
-    def ship_type_distinct_ids(self) -> Set[int]:
-        """Return distinct ship type IDs of all entities that are not None."""
-        ids = set(self.attackers_ship_type_ids())
-        if self.victim and self.victim.ship_type:
-            ids.add(self.victim.ship_type.id)
-        return ids
+            objs += attacker.entities()
+        return objs
 
     def attacker_final_blow(self) -> Optional[KillmailAttacker]:
         """Returns the attacker with the final blow or None if not found."""
@@ -162,6 +132,17 @@ class Killmail(_KillmailBase):
             if attacker.is_final_blow:
                 return attacker
         return None
+
+    async def resolve_entities(self):
+        """Resolve all eve entities from ESI."""
+        entities = self.entities()
+        ids = [obj.id for obj in entities]
+        resolved_entities = await EveEntity.create_objs_from_esi(ids)
+        for entity in entities:
+            if entity.id in resolved_entities:
+                resolved_entity = resolved_entities[entity.id]
+                entity.name = resolved_entity.name
+                entity.category = resolved_entity.category
 
     @classmethod
     def create_from_zkb_data(cls, killmail_data: dict) -> "Killmail":

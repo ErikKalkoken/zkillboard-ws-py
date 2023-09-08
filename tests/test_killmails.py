@@ -29,33 +29,30 @@ class TestKillmail(TestCase):
         self.assertEqual(killmail.id, 111519365)
         self.assertEqual(killmail.solar_system.id, 30001994)
 
-    def test_should_return_all_entity_ids(self):
+    def test_should_return_all_entities(self):
         # given
         killmail = KillmailFactory()
         # when
-        result = killmail.entity_ids()
+        result = killmail.entities()
         # then
-        expected = {
-            killmail.solar_system.id,
-            killmail.victim.character.id,
-            killmail.victim.corporation.id,
-            killmail.victim.alliance.id,
-            killmail.victim.faction.id,
-            killmail.victim.ship_type.id,
-            killmail.zkb.location_id,
-        }
+        expected = [
+            killmail.solar_system,
+            killmail.victim.character,
+            killmail.victim.corporation,
+            killmail.victim.alliance,
+            killmail.victim.faction,
+            killmail.victim.ship_type,
+        ]
         for attacker in killmail.attackers:
-            expected.update(
-                {
-                    attacker.character.id,
-                    attacker.corporation.id,
-                    attacker.alliance.id,
-                    attacker.faction.id,
-                    attacker.ship_type.id,
-                    attacker.weapon_type.id,
-                }
-            )
-        self.assertSetEqual(result, expected)
+            expected += [
+                attacker.character,
+                attacker.corporation,
+                attacker.alliance,
+                attacker.faction,
+                attacker.ship_type,
+                attacker.weapon_type,
+            ]
+        self.assertListEqual(result, expected)
 
 
 # class TestKillmailBasics(TestCase):
