@@ -2,7 +2,7 @@ import zkillboard
 
 
 class MyClient(zkillboard.ClientKillStream):
-    async def on_new_killmail(self, killmail: dict):
+    async def on_new_killmail(self, killmail: zkillboard.Killmail):
         print(killmail)
 
 

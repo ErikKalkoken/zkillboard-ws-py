@@ -10,6 +10,7 @@ import aiohttp
 import aiorun
 
 from . import config
+from .killmails import Killmail
 
 logger = logging.getLogger("zkillboard")
 
@@ -51,13 +52,17 @@ class _Client(ABC):
         self.channels = []
 
     @abstractmethod
-    async def on_new_killmail(self, killmail: dict):
+    async def on_new_killmail(self, killmail: Killmail):
         """This method is called when a new killmail is received from zkillboard API."""
 
     async def _subscribe_channels(self, ws: aiohttp.ClientWebSocketResponse):
         for channel in self.channels:
             await ws.send_json({"action": "sub", "channel": str(channel)})
             logger.info("subscribed to %s", channel)
+
+    async def _parse_killmail(self, killmail_data: dict):
+        killmail = Killmail.create_from_zkb_data(killmail_data)
+        await self.on_new_killmail(killmail)
 
     async def run_client(self):
         """Run the client for receiving events from the zkillboard websocket API."""
@@ -76,7 +81,7 @@ class _Client(ABC):
                                     "Received killmail: %s",
                                     killmail_data["killmail_id"],
                                 )
-                                asyncio.create_task(self.on_new_killmail(killmail_data))
+                                asyncio.create_task(self._parse_killmail(killmail_data))
 
                     logger.info("ZKB API closed connection")
 
